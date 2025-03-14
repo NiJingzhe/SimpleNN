@@ -6,7 +6,7 @@ SimpleNN - 一个基于NumPy的简单静态计算图神经网络框架
 from .layer import Layer, Dense, BatchNorm
 
 # 导入激活函数模块
-from .F import ReLU, Sigmoid, Tanh, Softmax, Dropout
+from .functional import ReLU, Sigmoid, Tanh, Softmax, Dropout
 
 # 导入损失函数模块
 from .loss import (

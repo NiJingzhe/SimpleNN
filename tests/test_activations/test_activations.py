@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from SimpleNN.F import ReLU, Sigmoid, Tanh, Softmax
+from SimpleNN.functional import ReLU, Sigmoid, Tanh, Softmax
 
 def test_relu():
     """测试ReLU激活函数"""

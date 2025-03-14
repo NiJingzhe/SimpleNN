@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from SimpleNN.model import Model
 from SimpleNN.layer import Dense
-from SimpleNN.F import ReLU, Sigmoid, Softmax
+from SimpleNN.functional import ReLU, Sigmoid, Softmax
 from SimpleNN.loss import MSE, SoftmaxCrossEntropy
 from SimpleNN.optimizer import SGD
 from SimpleNN.metric import Accuracy
