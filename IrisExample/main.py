@@ -1,4 +1,5 @@
 import numpy as np
+from pyparsing import C
 import SimpleNN as snn
 import matplotlib.pyplot as plt
 from sklearn.datasets import load_iris
@@ -20,9 +21,9 @@ def load_iris_dataset():
     """
     # 加载数据集
     iris = load_iris()
-    X = iris.data
-    y = iris.target
-    class_names = iris.target_names
+    X = iris.data  # type: ignore
+    y = iris.target  # type: ignore
+    class_names = iris.target_names  # type: ignore
     
     # 数据标准化
     scaler = StandardScaler()
@@ -65,19 +66,20 @@ plt.savefig('iris_dataset.png')
 plt.close()
 
 # 构建MLP模型
-model = snn.Model()
-model.add(snn.Dense(4, 16))  # 输入特征为4维
-model.add(snn.ReLU())
-model.add(snn.Dense(16, 8))
-model.add(snn.ReLU())
-model.add(snn.Dense(8, 3))
-model.add(snn.Softmax())     # 多分类使用Softmax激活函数
-
+model = snn.Model(
+    layers=[
+        snn.Dense(4, 16),
+        snn.ReLU(),
+        snn.Dense(16, 3),
+        snn.Tanh()
+    ]
+)
 # 编译模型
 model.compile(
     loss=snn.SoftmaxCrossEntropy(),  # 多分类使用Softmax交叉熵损失
     optimizer=snn.Adam(lr=0.01),
-    metrics=[snn.Accuracy()]  # 使用准确率指标
+    scheduler=snn.LinearDecayScheduler(final_lr=0.001, total_steps=300),
+    metrics=[snn.Accuracy()],  # 使用准确率指标
 )
 
 # 打印模型结构
@@ -87,7 +89,7 @@ model.summary()
 history = model.fit(
     x=X_train,
     y=y_train,
-    batch_size=16,
+    batch_size=64,                                                                                                  
     epochs=1000,  # 增加训练轮数
     validation_data=(X_val, y_val),
     shuffle=True,
@@ -96,8 +98,8 @@ history = model.fit(
 
 # 评估模型
 eval_results = model.evaluate(X_val, y_val)
-print(f"验证损失: {eval_results['loss']:.4f}")
-print(f"验证准确率: {eval_results['accuracy']:.4f}")
+print(f"验证损失: {eval_results['loss']:.4f}")        # type: ignore
+print(f"验证准确率: {eval_results['accuracy']:.4f}")  # type: ignore
 
 # 预测
 predictions = model.predict(X_val)

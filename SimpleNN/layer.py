@@ -1,9 +1,31 @@
 import numpy as np
-from typing import List, Callable, Optional, Union, Any, cast
+from typing import List, Callable, Optional, Union, Any, cast, Dict, Set
 from .optimizer import Optimizer
+from .parameter import Parameter
 
 class Layer:
     """神经网络层的基类，定义了所有层必须实现的接口"""
+    
+    def __init__(self):
+        """初始化层"""
+        self._parameters: Dict[str, Parameter] = {}
+    
+    def register_parameter(self, name: str, param: Parameter) -> None:
+        """注册参数
+        
+        Args:
+            name: 参数名称
+            param: 参数对象
+        """
+        self._parameters[name] = param
+    
+    def parameters(self) -> Dict[str, Parameter]:
+        """获取层的所有参数
+        
+        Returns:
+            参数字典
+        """
+        return self._parameters
     
     def forward(self, x: np.ndarray, training=True) -> np.ndarray:
         """前向传播"""
@@ -15,23 +37,35 @@ class Layer:
         
     def update(self, optimizer: Optional[Optimizer] = None) -> None:
         """参数更新"""
-        pass
+        pass  # 在新设计中，参数更新由优化器统一管理
 
 class Dense(Layer):
     """全连接层"""
     
     def __init__(self, input_dim: int, output_dim: int):
+        """初始化全连接层
+        
+        Args:
+            input_dim: 输入维度
+            output_dim: 输出维度
+        """
+        super().__init__()
         # He初始化
-        self.W: np.ndarray = np.random.randn(input_dim, output_dim) * np.sqrt(2 / input_dim)
-        self.b: np.ndarray = np.zeros((1, output_dim))
+        W_data = np.random.randn(input_dim, output_dim) * np.sqrt(2 / input_dim)
+        b_data = np.zeros((1, output_dim))
+        
+        # 创建参数并注册
+        self.register_parameter('W', Parameter(W_data))
+        self.register_parameter('b', Parameter(b_data))
+        
         self.x: Optional[np.ndarray] = None
-        self.dW: Optional[np.ndarray] = None
-        self.db: Optional[np.ndarray] = None
         
     def forward(self, x: np.ndarray, training=True) -> np.ndarray:
         """前向传播"""
         self.x = x
-        return x @ self.W + self.b
+        W = self._parameters['W'].data
+        b = self._parameters['b'].data
+        return x @ W + b
         
     def backward(self, grad: np.ndarray) -> np.ndarray:
         """反向传播
@@ -52,50 +86,53 @@ class Dense(Layer):
         if self.x is None:
             raise ValueError("无法对没有输入的层进行反向传播")
             
-        self.dW = self.x.T @ grad   
-        # x has shape (batch_size, input_dim), grad has shape (batch_size, output_dim)
-        # x.T @ grad has shape (input_dim, output_dim), match the shape of W
-        self.db = np.sum(grad, axis=0, keepdims=True)
-        return grad @ self.W.T
+        W = self._parameters['W'].data
         
-    def update(self, optimizer: Optional[Optimizer] = None) -> None:
-        """使用优化器更新参数"""
-        # 确保梯度已经计算
-        if self.dW is None or self.db is None or optimizer is None:
-            return
-            
-        # 分别更新权重和偏置
-        params = [self.W, self.b]
-        grads = [self.dW, self.db]
-        updated_params = optimizer.update(params, grads)
+        # 计算梯度
+        dW = self.x.T @ grad
+        db = np.sum(grad, axis=0, keepdims=True)
         
-        # 更新参数
-        self.W = updated_params[0]
-        self.b = updated_params[1]
+        # 设置梯度
+        self._parameters['W'].grad = dW
+        self._parameters['b'].grad = db
+        
+        return grad @ W.T
 
 class BatchNorm(Layer):
     """批量归一化层"""
     
     def __init__(self, dim: int, eps: float = 1e-5, momentum: float = 0.9):
-        self.gamma: np.ndarray = np.ones((1, dim))  # 缩放参数
-        self.beta: np.ndarray = np.zeros((1, dim))  # 平移参数
-        self.eps: float = eps  # 数值稳定性参数
-        self.momentum: float = momentum  # 动量参数
+        """初始化批量归一化层
         
-        # 运行时参数
-        self.running_mean: np.ndarray = np.zeros((1, dim))
-        self.running_var: np.ndarray = np.ones((1, dim))
+        Args:
+            dim: 特征维度
+            eps: 数值稳定性参数
+            momentum: 动量参数
+        """
+        super().__init__()
+        
+        # 创建参数并注册
+        self.register_parameter('gamma', Parameter(np.ones((1, dim))))
+        self.register_parameter('beta', Parameter(np.zeros((1, dim))))
+        
+        self.eps = eps
+        self.momentum = momentum
+        
+        # 运行时参数（不参与梯度计算）
+        self.running_mean = np.zeros((1, dim))
+        self.running_var = np.ones((1, dim))
         
         # 反向传播所需缓存
-        self.x_norm: Optional[np.ndarray] = None
         self.x: Optional[np.ndarray] = None
+        self.x_norm: Optional[np.ndarray] = None
         self.mu: Optional[np.ndarray] = None
         self.var: Optional[np.ndarray] = None
-        self.dgamma: Optional[np.ndarray] = None
-        self.dbeta: Optional[np.ndarray] = None
         
     def forward(self, x: np.ndarray, training=True) -> np.ndarray:
         """前向传播"""
+        gamma = self._parameters['gamma'].data
+        beta = self._parameters['beta'].data
+        
         if training:
             self.x = x
             self.mu = np.mean(x, axis=0, keepdims=True)
@@ -113,56 +150,34 @@ class BatchNorm(Layer):
             
             # 归一化
             self.x_norm = (x - self.mu) / np.sqrt(self.var + self.eps)
-            return self.gamma * self.x_norm + self.beta
+            return gamma * self.x_norm + beta
         else:
             # 测试阶段使用运行时统计量
             x_norm = (x - self.running_mean) / np.sqrt(self.running_var + self.eps)
-            return self.gamma * x_norm + self.beta
+            return gamma * x_norm + beta
     
     def backward(self, grad: np.ndarray) -> np.ndarray:
-        """反向传播
-        
-        数学推导:
-        前向传播: 
-        x_norm = (x - μ) / sqrt(σ² + ε)
-        y = γ * x_norm + β
-        
-        对γ的梯度:
-        dL/dγ = dL/dy * dy/dγ = dL/dy * x_norm = sum(dL/dy * x_norm, axis=0)
-        
-        对β的梯度:
-        dL/dβ = dL/dy * dy/dβ = dL/dy * 1 = sum(dL/dy, axis=0)
-        
-        对x_norm的梯度:
-        dL/dx_norm = dL/dy * dy/dx_norm = dL/dy * γ
-        
-        对方差σ²的梯度:
-        dL/dσ² = dL/dx_norm * dx_norm/dσ² = sum(dL/dx_norm * (x - μ) * (-0.5) * (σ² + ε)^(-1.5), axis=0)
-        
-        对均值μ的梯度:
-        dL/dμ = dL/dx_norm * dx_norm/dμ + dL/dσ² * dσ²/dμ
-              = sum(dL/dx_norm * (-1/sqrt(σ² + ε)), axis=0) + dL/dσ² * sum(-2(x - μ), axis=0)/N
-        
-        对输入x的梯度:
-        dL/dx = dL/dx_norm * dx_norm/dx + dL/dσ² * dσ²/dx + dL/dμ * dμ/dx
-              = dL/dx_norm / sqrt(σ² + ε) + dL/dσ² * 2(x - μ)/N + dL/dμ * 1/N
-        """
+        """反向传播"""
         if self.x is None or self.mu is None or self.var is None or self.x_norm is None:
             raise ValueError("请先调用forward方法初始化内部状态")
             
-        # 确保所有变量都不为None
+        gamma = self._parameters['gamma'].data
+        
         x = self.x
         mu = self.mu
         var = self.var
         x_norm = self.x_norm
         eps = self.eps
-        gamma = self.gamma
         
         N = x.shape[0]
         
         # 计算gamma和beta的梯度
-        self.dgamma = np.sum(grad * x_norm, axis=0, keepdims=True)
-        self.dbeta = np.sum(grad, axis=0, keepdims=True)
+        dgamma = np.sum(grad * x_norm, axis=0, keepdims=True)
+        dbeta = np.sum(grad, axis=0, keepdims=True)
+        
+        # 设置梯度
+        self._parameters['gamma'].grad = dgamma
+        self._parameters['beta'].grad = dbeta
         
         # 计算x_norm的梯度
         dx_norm = grad * gamma
@@ -177,18 +192,3 @@ class BatchNorm(Layer):
         dx = dx_norm / np.sqrt(var + eps) + dvar * 2 * (x - mu) / N + dmu / N
         
         return dx
-    
-    def update(self, optimizer: Optional[Optimizer] = None) -> None:
-        """使用优化器更新参数"""
-        # 确保梯度已经计算
-        if self.dgamma is None or self.dbeta is None or optimizer is None:
-            return
-            
-        # 分别更新gamma和beta
-        params = [self.gamma, self.beta]
-        grads = [self.dgamma, self.dbeta]
-        updated_params = optimizer.update(params, grads)
-        
-        # 更新参数
-        self.gamma = updated_params[0]
-        self.beta = updated_params[1]

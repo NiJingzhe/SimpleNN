@@ -2,6 +2,9 @@
 SimpleNN - 一个基于NumPy的简单静态计算图神经网络框架
 """
 
+# 导入参数模块
+from .parameter import Parameter
+
 # 导入层模块
 from .layer import Layer, Dense, BatchNorm
 
@@ -34,6 +37,9 @@ from .metric import (
     Accuracy,
     F1Score,
 )
+
+from .scheduler import LinearDecayScheduler
+
 
 # 导入模型模块
 from .model import Model
