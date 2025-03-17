@@ -391,6 +391,7 @@ class Model:
         Args:
             loss: 损失函数
             optimizer: 优化器
+            scheduler: 学习率调度器
             metrics: 评估指标列表，可以是字符串列表（如['accuracy']）或Metric对象列表
         """
         self.loss_fn = loss
