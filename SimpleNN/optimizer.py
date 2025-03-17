@@ -4,6 +4,9 @@ from typing import List
 class Optimizer:
     """优化器基类"""
     
+    def __init__(self, lr: float):
+        self.lr = lr
+    
     def update(self, params: List[np.ndarray], grads: List[np.ndarray]) -> List[np.ndarray]:
         """更新参数"""
         raise NotImplementedError
@@ -12,7 +15,7 @@ class SGD(Optimizer):
     """随机梯度下降优化器"""
     
     def __init__(self, lr=0.01):
-        self.lr = lr
+        super().__init__(lr=lr)
         
     def update(self, params: List[np.ndarray], grads: List[np.ndarray]) -> List[np.ndarray]:
         """使用梯度更新参数"""
@@ -21,8 +24,10 @@ class SGD(Optimizer):
 class MomentumSGD(Optimizer):
     """带动量的SGD优化器"""
     
-    def __init__(self, lr=0.01, momentum=0.9):
-        self.lr = lr
+    def __init__(self, lr=0.1, momentum=0.9):
+        
+        super().__init__(lr=lr)
+        
         self.momentum = momentum
         self.velocities = {}
         self.param_shapes = {}
@@ -50,7 +55,9 @@ class Adam(Optimizer):
     """Adam优化器"""
     
     def __init__(self, lr=0.001, beta1=0.9, beta2=0.999, epsilon=1e-8):
-        self.lr = lr
+        
+        super().__init__(lr=lr)
+        
         self.beta1 = beta1
         self.beta2 = beta2
         self.epsilon = epsilon
@@ -91,7 +98,9 @@ class RMSprop(Optimizer):
     """RMSprop优化器"""
     
     def __init__(self, lr=0.01, decay_rate=0.99, epsilon=1e-8):
-        self.lr = lr
+        
+        super().__init__(lr=lr)
+        
         self.decay_rate = decay_rate
         self.epsilon = epsilon
         self.cache = {}

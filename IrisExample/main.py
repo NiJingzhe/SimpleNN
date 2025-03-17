@@ -68,7 +68,9 @@ plt.close()
 model = snn.Model()
 model.add(snn.Dense(4, 16))  # 输入特征为4维
 model.add(snn.ReLU())
-model.add(snn.Dense(16, 3))
+model.add(snn.Dense(16, 8))
+model.add(snn.ReLU())
+model.add(snn.Dense(8, 3))
 model.add(snn.Softmax())     # 多分类使用Softmax激活函数
 
 # 编译模型
@@ -84,9 +86,9 @@ model.summary()
 # 训练模型
 history = model.fit(
     x=X_train,
-    y=y_train,  # 使用类别索引而不是one-hot编码
+    y=y_train,
     batch_size=16,
-    epochs=100,  # 增加训练轮数
+    epochs=1000,  # 增加训练轮数
     validation_data=(X_val, y_val),
     shuffle=True,
     verbose=1

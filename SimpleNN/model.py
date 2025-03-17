@@ -1,25 +1,32 @@
 import numpy as np
-from typing import List, Dict, Union, Callable, Tuple, Optional, Any
-from .layer import Layer
+from typing import List, Dict, Union, Callable, Tuple, Optional, Any, cast, TypeVar
+
+from .schedular import Schedular
+from .layer import Layer, Dense, BatchNorm
 from .loss import Loss
 from .optimizer import Optimizer
 from .metric import Metric, Accuracy
 import time
 
+# 定义类型变量以便后续使用
+LayerWithWeights = TypeVar('LayerWithWeights', bound=Layer)
+LayerWithBatchNorm = TypeVar('LayerWithBatchNorm', bound=Layer)
+
 class Model:
     """神经网络模型"""
     
-    def __init__(self, layers: List[Layer] = None):
+    def __init__(self, layers: List[Layer] | None = None):
         """初始化模型
         
         Args:
             layers: 网络层列表，可选，也可以通过add方法添加
         """
         self.layers = layers if layers is not None else []
-        self.loss_fn = None
-        self.optimizer = None
-        self.history = {}  # 空字典，将在fit方法中初始化
-        self.metrics = []  # 用于存储要计算的指标
+        self.loss_fn: Optional[Loss] = None
+        self.optimizer: Optional[Optimizer] = None
+        self.schedular: Optional[Schedular] = None
+        self.history: Dict[str, List[float]] = {}  # 空字典，将在fit方法中初始化
+        self.metrics: List[Metric] = []  # 用于存储要计算的指标
         
     def add(self, layer: Layer):
         """添加一个层到模型
@@ -63,6 +70,8 @@ class Model:
         for layer in self.layers:
             if hasattr(layer, 'update'):
                 try:
+                    if self.schedular is not None and self.optimizer is not None:
+                        self.schedular.update_optimizer(self.optimizer, self.history)
                     layer.update(self.optimizer)
                 except Exception as e:
                     print(f"Error updating layer {layer.__class__.__name__}: {e}")
@@ -87,6 +96,10 @@ class Model:
             if len(outputs.shape) > 1 and outputs.shape[1] == 1 and len(y.shape) == 1:
                 y = y.reshape(-1, 1)
             
+            # 确保loss_fn不为None
+            if self.loss_fn is None:
+                raise ValueError("模型尚未编译，请先调用compile方法")
+                
             # 计算损失
             loss = self.loss_fn.forward(outputs, y)
             
@@ -174,7 +187,7 @@ class Model:
             validation_data: Optional[Tuple[np.ndarray, np.ndarray]] = None,
             shuffle: bool = True,
             verbose: int = 1,
-            callbacks: List[Callable] = None) -> Dict[str, List[float]]:
+            callbacks: Optional[List[Callable[[int, Dict[str, List[float]]], None]]] = None) -> Dict[str, List[float]]:
         """训练模型
         
         Args:
@@ -217,8 +230,8 @@ class Model:
         # 开始训练
         for epoch in range(epochs):
             start_time = time.time()
-            epoch_loss = 0
-            epoch_metrics = {metric.name: 0 for metric in self.metrics}
+            epoch_loss = 0.0
+            epoch_metrics: Dict[str, float] = {metric.name: 0.0 for metric in self.metrics}
             
             # 打乱数据
             if shuffle:
@@ -276,21 +289,25 @@ class Model:
                 self.history[metric.name].append(epoch_metrics[metric.name])
             
             # 验证
-            val_metrics = {}
+            val_metrics: Dict[str, float] = {}
+            val_loss = 0.0
             if validation_data is not None:
                 x_val, y_val = validation_data
                 
                 if self.metrics:
                     # 如果有指定metrics，计算所有指标
                     val_results = self.evaluate(x_val, y_val)
-                    val_loss = val_results['loss']
-                    for metric_name, value in val_results.items():
-                        if metric_name != 'loss':
-                            val_metrics[metric_name] = value
-                            self.history[f'val_{metric_name}'].append(value)
+                    if isinstance(val_results, dict):
+                        val_loss = val_results['loss']
+                        for metric_name, value in val_results.items():
+                            if metric_name != 'loss':
+                                val_metrics[metric_name] = value
+                                self.history[f'val_{metric_name}'].append(value)
+                    else:
+                        val_loss = val_results
                 else:
                     # 否则只计算损失
-                    val_loss = self.evaluate(x_val, y_val)
+                    val_loss = cast(float, self.evaluate(x_val, y_val))
                 
                 self.history['val_loss'].append(val_loss)
             
@@ -313,7 +330,7 @@ class Model:
                 
         return self.history
     
-    def compile(self, loss: Loss, optimizer: Optimizer, metrics: Union[List[str], List[Metric]] = None):
+    def compile(self, loss: Loss, optimizer: Optimizer, schedular: Optional[Schedular] = None, metrics: Optional[Union[List[str], List[Metric]]] = None):
         """编译模型，设置损失函数、优化器和评估指标
         
         Args:
@@ -323,6 +340,7 @@ class Model:
         """
         self.loss_fn = loss
         self.optimizer = optimizer
+        self.schedular = schedular
         self.metrics = []
         
         # 处理指标
@@ -349,20 +367,25 @@ class Model:
             
             # 计算参数数量
             params = 0
-            if hasattr(layer, 'W') and hasattr(layer, 'b'):
-                w_params = np.prod(layer.W.shape)
-                b_params = np.prod(layer.b.shape)
+            # 检查是否有权重和偏置 (Dense层)
+            if isinstance(layer, Dense):
+                dense_layer = cast(Dense, layer)
+                w_params = np.prod(dense_layer.W.shape)
+                b_params = np.prod(dense_layer.b.shape)
                 params = w_params + b_params
                 trainable_params += params
-            elif hasattr(layer, 'gamma') and hasattr(layer, 'beta'):
-                params = np.prod(layer.gamma.shape) + np.prod(layer.beta.shape)
+            # 检查是否有BatchNorm参数
+            elif isinstance(layer, BatchNorm):
+                bn_layer = cast(BatchNorm, layer)
+                params = np.prod(bn_layer.gamma.shape) + np.prod(bn_layer.beta.shape)
                 trainable_params += params
                 
             total_params += params
             
             shape_str = "Unknown"
-            if hasattr(layer, 'W'):
-                shape_str = f"({layer.W.shape[0]}, {layer.W.shape[1]})"
+            if isinstance(layer, Dense):
+                dense_layer = cast(Dense, layer)
+                shape_str = f"({dense_layer.W.shape[0]}, {dense_layer.W.shape[1]})"
             
             print(f"{layer_name:<30}{shape_str:<25}{params:<15}")
             
