@@ -13,7 +13,15 @@ class Loss:
         raise NotImplementedError
 
 class MSE(Loss):
-    """均方误差损失"""
+    """均方误差损失
+    
+    :math:`L = 1/n * sum((y_pred - y_true)^2)`
+    
+    And the gradient should be represented as:
+    
+    :math:`dL/dy_pred = 2/n * (y_pred - y_true)`
+    
+    """
     
     def __init__(self):
         self.y_pred: Optional[np.ndarray] = None
@@ -33,7 +41,28 @@ class MSE(Loss):
         return 2 * (self.y_pred - self.y_true) / self.y_pred.shape[0]
 
 class SoftmaxCrossEntropy(Loss):
-    """Softmax交叉熵损失，结合了Softmax激活和交叉熵损失"""
+    """Softmax交叉熵损失，结合了Softmax激活和交叉熵损失
+    
+    :math:`L = CorssEntropy(Softmax(x), y_label)`
+    
+    CrossEntropy:
+    :math:`L = -1/n * sum(y_true * log(softmax(x)))`
+    where :math:`y_true` is the one-hot encoded true labels, just like a mask.
+    and :math:`softmax(x)` is the softmax of the model's output.
+    
+    when :math:`y_true * log(softmax(x))`, this can alse be represented as:
+    ```python
+    loss = np.mean(-np.log(softmax(x)[y_true.indexOf(1)]))
+    ```
+    
+    Softmax:
+    :math:`softmax(x) = exp(x) / sum(exp(x))`
+    
+    And the gradient should be represented as:
+    
+    
+    
+    """
     
     def __init__(self):
         self.y_true: Optional[np.ndarray] = None
@@ -53,7 +82,11 @@ class SoftmaxCrossEntropy(Loss):
         self.y_true = y_true
         
         # 计算Softmax概率
+        
+        # 去掉最大值，防止指数溢出
         shifted_logits = x - np.max(x, axis=1, keepdims=True)
+        
+        # 计算Softmax概率
         exp_logits = np.exp(shifted_logits)
         self.probs = exp_logits / np.sum(exp_logits, axis=1, keepdims=True)
         

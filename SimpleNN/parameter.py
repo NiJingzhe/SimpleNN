@@ -13,6 +13,7 @@ class Parameter:
         self.data = data
         self.grad: Optional[np.ndarray] = None
         self.id = id(self)  # 唯一标识符
+        self.requires_grad = True
     
     def zero_grad(self) -> None:
         """清空梯度"""

@@ -3,11 +3,20 @@ from typing import Optional
 from .layer import Layer
 
 class ReLU(Layer):
-    """ReLU激活函数层"""
+    """ReLU 
+   
+    :math:`ReLU(x) = max(0, x)`
     
+    And the gradient should be represented as:
+    
+    :math:`ReLU'(x) = 1 if x > 0 else 0`
+   
+    
+    """
     def __init__(self):
         """初始化ReLU层"""
         super().__init__()
+        self._name = "ReLU"
         self.x: Optional[np.ndarray] = None
         
     def forward(self, x: np.ndarray) -> np.ndarray:
@@ -22,11 +31,19 @@ class ReLU(Layer):
         return grad * (self.x > 0)
 
 class Sigmoid(Layer):
-    """Sigmoid激活函数层"""
+    """Sigmoid激活函数层
+
+    :math:`Sigmoid(x) = 1 / (1 + e^{-x})`
+    
+    And the gradient should be represented as:
+    
+    :math:`Sigmoid'(x) = Sigmoid(x) * (1 - Sigmoid(x))`
+    """
     
     def __init__(self):
         """初始化Sigmoid层"""
         super().__init__()
+        self._name = "Sigmoid"
         self.out: Optional[np.ndarray] = None
         
     def forward(self, x: np.ndarray) -> np.ndarray:
@@ -46,6 +63,7 @@ class Tanh(Layer):
     def __init__(self):
         """初始化Tanh层"""
         super().__init__()
+        self._name = "Tanh"
         self.out: Optional[np.ndarray] = None
         
     def forward(self, x: np.ndarray) -> np.ndarray:
@@ -69,6 +87,7 @@ class Softmax(Layer):
             axis: 对哪个轴计算Softmax
         """
         super().__init__()
+        self._name = "Softmax"
         self.axis = axis
         self.out: Optional[np.ndarray] = None
         
@@ -102,6 +121,7 @@ class Dropout(Layer):
             rate: 丢弃率，0到1之间
         """
         super().__init__()
+        self._name = "Dropout"
         self.rate = rate
         self.mask: Optional[np.ndarray] = None
         
