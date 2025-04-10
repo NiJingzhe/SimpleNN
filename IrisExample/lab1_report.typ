@@ -28,6 +28,41 @@
 #set page(
   paper: "a4",
   margin: (x: 2cm, y: 2cm),
+)
+
+
+#align(center)[
+  #image(
+    "../imgsrc/zjutitle.png",
+    width: 60%
+  )
+  #image(
+    "../imgsrc/zjulogo.png",
+    width: 60%,
+  )
+  #text(weight: "extrabold", size: 30pt)[本科生实验报告]
+  #v(4em)
+  #set text(font: "Noto Serif", size: 18pt)
+  #grid(
+    columns: (auto, 15em),
+    align: center+horizon,
+    column-gutter: 0.5em,
+    row-gutter: 0.6em,
+    text[姓#h(2em)名:], rect(width: 100%, stroke: (bottom: (1pt+black)))[倪旌哲],
+    text[学#h(2em)号:], rect(width: 100%, stroke: (bottom: (1pt+black)))[3220100733],
+    text[学#h(2em)院:], rect(width: 100%, stroke: (bottom: (1pt+black)))[生物医学工程与仪器科学学院],
+    text[专#h(2em)业:], rect(width: 100%, stroke: (bottom: (1pt+black)))[生物医学工程],
+    text[课程名称:], rect(width: 100%, stroke: (bottom: (1pt+black)))[智能信息处理],
+    text[指导老师:], rect(width: 100%, stroke: (bottom: (1pt+black)))[谢立],
+  )
+  #v(2em)
+  #set text(size: 14pt)
+  #text[#datetime.today().display("[year]年[month]月[day]日")]
+]
+
+#set page(
+  paper: "a4",
+  margin: (x: 2cm, y: 2cm),
   header: [
     #set text(9pt)
     #grid(
@@ -41,26 +76,19 @@
     #grid(
       columns: (1fr, auto),
       [智能信息处理实验],
+      [#context(counter(page).display())]
     )
-  ]
+  ],
 )
 
 #set text(size: 11pt)
 #set heading(numbering: "1.1.")
-
+#v(2em)
 #align(center, text(17pt, weight: "bold")[
-  多层感知机及其在鸢尾花分类中的应用
+  使用多层感知机对鸢尾花数据集进行分类
 ])
-
-#align(center, text(13pt)[
-  基于SimpleNN框架的实验报告
-])
-
-#align(center, text(11pt)[
-  实验时间: 2025年4月10日
-])
-
 #v(1cm)
+
 
 = 实验目的
 
@@ -128,7 +156,7 @@ $ a^(l) = g(z^(l)) $
 - $a^(l)$: 第$l$层的激活值
 - $W^(l)$: 连接第$l-1$层和第$l$层的权重矩阵
 - $b^(l)$: 第$l$层的偏置向量
-- $g(\cdot)$: 激活函数（如ReLU、Sigmoid、Tanh等）
+- $g(dot)$: 激活函数（如ReLU、Sigmoid、Tanh等）
 
 === 反向传播
 
