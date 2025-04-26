@@ -2,7 +2,7 @@ import numpy as np
 from typing import List, Dict, Union, Callable, Tuple, Optional, Any, cast, TypeVar
 
 from .scheduler import Scheduler
-from .layer import Layer, Dense, BatchNorm
+from .layer import *
 from .loss import Loss
 from .optimizer import Optimizer
 from .metric import Metric, Accuracy
@@ -10,8 +10,6 @@ import time
 
 # 定义类型变量以便后续使用
 LayerWithWeights = TypeVar("LayerWithWeights", bound=Layer)
-LayerWithBatchNorm = TypeVar("LayerWithBatchNorm", bound=Layer)
-
 
 class Model:
     """神经网络模型"""
@@ -81,10 +79,6 @@ class Model:
                     param_key = f"{layer.__class__.__name__}_{id(layer)}_{name}"
                     all_parameters[param_key] = param
         
-        # 更新学习率调度器
-        if self.scheduler is not None and self.optimizer is not None:
-            self.scheduler.update_optimizer(self.optimizer, self.history)
-            
         # 使用优化器更新所有参数
         if self.optimizer is not None:
             self.optimizer.update(all_parameters)
@@ -227,7 +221,7 @@ class Model:
         iterations_per_epoch = int(np.ceil(num_samples / batch_size))
 
         # 初始化历史记录
-        self.history = {"loss": []}
+        self.history = {"loss": [], "lr": []}
 
         # 如果有验证数据，添加val_loss
         if validation_data is not None:
@@ -274,9 +268,6 @@ class Model:
                     batch_loss = self._train_step(batch_x, batch_y)
                     epoch_loss += batch_loss * (end_idx - start_idx)
                     
-                    # 使用调度器更新学习率
-                    if self.scheduler is not None and self.optimizer is not None:
-                        self.scheduler.update_optimizer(self.optimizer, self.history)
 
                     # 计算其他指标
                     if self.metrics:
@@ -322,6 +313,13 @@ class Model:
                     )
                     print(f"Batch shapes - X: {batch_x.shape}, y: {batch_y.shape}")
                     raise
+
+            
+            # 使用调度器更新学习率
+            if self.scheduler is not None and self.optimizer is not None:
+                self.scheduler.update_optimizer(self.optimizer, self.history)
+            
+            self.history["lr"].append(self.optimizer.lr)
 
             # 计算平均损失和指标
             epoch_loss /= num_samples
@@ -374,8 +372,16 @@ class Model:
                 )
 
             # 执行回调函数
+            early_stopping = False
             for callback in callbacks:
-                callback(epoch, self.history)
+                if callback(epoch, self.history) == True:
+                    print("训练被回调函数中断")
+                    early_stopping = True
+            
+            if early_stopping:
+                print("提前停止训练")
+                break
+                    
 
         return self.history
 
@@ -414,47 +420,34 @@ class Model:
         """打印模型结构摘要"""
         print("Model Summary:")
         print("=" * 80)
-        print(f"{'Layer (type)':<30}{'Output Shape':<25}{'Param #':<15}")
-        print("=" * 80)
+        print(f"{'Layer(input_dim, output_dim)':<30}{'Params':<20}{'Trainable Params':<20}")
+        print("-" * 80)
         
         total_params = 0
         trainable_params = 0
         
+        # 遍历每一层
         for i, layer in enumerate(self.layers):
-            layer_name = f"{i}: {layer.__class__.__name__}"
+            layer_name = f"{i}: {layer._name}"
+            layer_params = 0
+            layer_trainable = 0
             
-            # 计算参数数量
-            params = 0
-            # 检查是否有权重和偏置 (Dense层)
-            if isinstance(layer, Dense):
-                dense_layer = cast(Dense, layer)
-                W = dense_layer.parameters()['W'].data
-                b = dense_layer.parameters()['b'].data
-                w_params = np.prod(W.shape)
-                b_params = np.prod(b.shape)
-                params = w_params + b_params
-                trainable_params += params
-                
-                # 输出形状
-                shape_str = f"({W.shape[0]}, {W.shape[1]})"
-            # 检查是否有BatchNorm参数
-            elif isinstance(layer, BatchNorm):
-                bn_layer = cast(BatchNorm, layer)
-                gamma = bn_layer.parameters()['gamma'].data
-                beta = bn_layer.parameters()['beta'].data
-                params = np.prod(gamma.shape) + np.prod(beta.shape)
-                trainable_params += params
-                
-                # 输出形状
-                shape_str = f"({gamma.shape[1]})"
-            else:
-                shape_str = "Unknown"
-                
-            total_params += params
+            # 统计该层的参数
+            params = layer.parameters()
+            for param_name, param in params.items():
+                param_size = np.prod(param.data.shape)
+                layer_params += param_size
+                if param.requires_grad:
+                    layer_trainable += param_size
             
-            print(f"{layer_name:<30}{shape_str:<25}{params:<15}")
+            # 显示该层的统计信息
+            print(f"{layer_name:<30}{layer_params:<20}{layer_trainable:<20}")
             
-        print("=" * 80)
+            # 累加到总参数
+            total_params += layer_params
+            trainable_params += layer_trainable
+        
+        print("-" * 80)
         print(f"Total params: {total_params}")
         print(f"Trainable params: {trainable_params}")
         print(f"Non-trainable params: {total_params - trainable_params}")

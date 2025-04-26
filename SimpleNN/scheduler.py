@@ -38,10 +38,11 @@ class LinearDecayScheduler(Scheduler):
             self.initial_lr = optimizer.lr
             
         if self.step >= self.total_steps:
-            return
+            print("学习率调度器已达到最大步数，停止更新学习率。")
+            return 
             
         # 计算当前学习率
-        alpha = self.step / self.total_steps
+        alpha = float(self.step / self.total_steps)
         new_lr = self.initial_lr * (1 - alpha) + self.final_lr * alpha
         optimizer.lr = new_lr
         self.step += 1
