@@ -79,10 +79,6 @@ class Model:
                     param_key = f"{layer.__class__.__name__}_{id(layer)}_{name}"
                     all_parameters[param_key] = param
         
-        # 更新学习率调度器
-        if self.scheduler is not None and self.optimizer is not None:
-            self.scheduler.update_optimizer(self.optimizer, self.history)
-            
         # 使用优化器更新所有参数
         if self.optimizer is not None:
             self.optimizer.update(all_parameters)
@@ -225,7 +221,7 @@ class Model:
         iterations_per_epoch = int(np.ceil(num_samples / batch_size))
 
         # 初始化历史记录
-        self.history = {"loss": []}
+        self.history = {"loss": [], "lr": []}
 
         # 如果有验证数据，添加val_loss
         if validation_data is not None:
@@ -272,9 +268,6 @@ class Model:
                     batch_loss = self._train_step(batch_x, batch_y)
                     epoch_loss += batch_loss * (end_idx - start_idx)
                     
-                    # 使用调度器更新学习率
-                    if self.scheduler is not None and self.optimizer is not None:
-                        self.scheduler.update_optimizer(self.optimizer, self.history)
 
                     # 计算其他指标
                     if self.metrics:
@@ -320,6 +313,13 @@ class Model:
                     )
                     print(f"Batch shapes - X: {batch_x.shape}, y: {batch_y.shape}")
                     raise
+
+            
+            # 使用调度器更新学习率
+            if self.scheduler is not None and self.optimizer is not None:
+                self.scheduler.update_optimizer(self.optimizer, self.history)
+            
+            self.history["lr"].append(self.optimizer.lr)
 
             # 计算平均损失和指标
             epoch_loss /= num_samples
@@ -372,8 +372,16 @@ class Model:
                 )
 
             # 执行回调函数
+            early_stopping = False
             for callback in callbacks:
-                callback(epoch, self.history)
+                if callback(epoch, self.history) == True:
+                    print("训练被回调函数中断")
+                    early_stopping = True
+            
+            if early_stopping:
+                print("提前停止训练")
+                break
+                    
 
         return self.history
 

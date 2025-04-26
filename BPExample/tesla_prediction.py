@@ -60,8 +60,8 @@ def main():
     # 编译模型
     model.compile(
         loss=snn.MSE(),
-        optimizer=snn.Adam(lr=0.01),
-        scheduler=snn.LinearDecayScheduler(final_lr=0.001, total_steps=300),
+        optimizer=snn.Adam(lr=0.001),
+        scheduler=snn.LinearDecayScheduler(final_lr=0.0001, total_steps=1000),
     )
     
     # 打印模型结构
@@ -71,7 +71,7 @@ def main():
     history = model.fit(
         x=X_train,
         y=y_train,
-        batch_size=32,
+        batch_size=256,
         epochs=1000,
         validation_data=(X_val, y_val),
         shuffle=True,
@@ -80,7 +80,7 @@ def main():
     
     # 评估模型
     eval_results = model.evaluate(X_val, y_val)
-    print(f"验证损失: {eval_results:.4f}")
+    print(f"Validation Loss: {eval_results:.4f}")
     
     # 预测
     predictions = model.predict(X_val)
@@ -116,6 +116,12 @@ def main():
     plt.ylabel('Loss')
     plt.legend()
     
+    # 绘制学习率
+    plt.subplot(1, 2, 2)
+    plt.plot(history['lr'])
+    plt.title('Learning Rate')
+    plt.xlabel('Epoch')
+    plt.ylabel('Learning Rate')
     
     plt.tight_layout()
     plt.savefig('tesla_training_history.png')
